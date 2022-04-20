@@ -10,6 +10,7 @@ def get_all_moods():
         # Just use these. It's a Black Box.
         conn.row_factory = sqlite3.Row
         db_cursor = conn.cursor()
+        
 
         # Write the SQL query to get the information you want
         db_cursor.execute("""

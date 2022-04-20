@@ -1,6 +1,6 @@
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from views import (get_entries_by_search, get_all_moods, get_single_entry, get_all_entries, delete_entry, create_entry, update_entry, get_single_mood,)
+from views import (get_entries_by_search, get_all_moods, get_single_entry, get_all_entries, delete_entry, create_entry, update_entry, get_single_mood)
 
 # Here's a class. It inherits from another class.
 # For now, think of a class as a container for functions that
@@ -88,14 +88,14 @@ class HandleRequests(BaseHTTPRequestHandler):
 
             if resource == "entries":
                 if id is not None:
-                    response = get_single_entry(id)
+                    response = f"{get_single_entry(id)}"
                 else:
-                    response = get_all_entries()
+                    response = f"{get_all_entries()}"
             elif resource == "moods":
                 if id is not None:
-                    response = get_single_mood(id)
+                    response = f"{get_single_mood(id)}"
                 else:
-                    response = get_all_moods()
+                    response = f"{get_all_moods()}"
            
 
         # Response from parse_url() is a tuple with 3
@@ -129,7 +129,7 @@ class HandleRequests(BaseHTTPRequestHandler):
         new_entry = None
 
         # Add a new dictionary to the list.
-        if resource == "entries":
+        if resource == "entries": 
             new_entry = create_entry(post_body)
             # Encode the new entry and send in response
             self.wfile.write(f"{new_entry}".encode())
