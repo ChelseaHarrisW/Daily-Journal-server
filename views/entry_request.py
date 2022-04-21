@@ -143,16 +143,16 @@ def create_entry(new_entry):
 
         # loop through the tags after adding new entry
         # w/n loop execute SQL command to INSERT a row to entrytag table
-        # for tag in new_entry['tags']:
+        for tag in new_entry['tags']:
 
-            # db_cursor.execute("""
-            # INSERT INTO EntryTag
-            #     (entry_id, tag_id)
-            # VALUES
-            #     (?,?);
-            # """, (id, tag))
+            db_cursor.execute("""
+            INSERT INTO EntryTag
+                (entry_id, tag_id)
+            VALUES
+                (?,?);
+            """, (id, tag))
 
-        return json.dumps(new_entry)
+    return json.dumps(new_entry)
 
 
 def update_entry(id, new_entry):
