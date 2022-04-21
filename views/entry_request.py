@@ -1,124 +1,92 @@
 import sqlite3
 import json
-from models import Entry, Mood
+from models import Entry, Mood, Tag
 
 
 def get_all_entries():
-    # Open a connection to the database
     with sqlite3.connect("./dailyjournal.sqlite3") as conn:
 
         # Just use these. It's a Black Box.
         conn.row_factory = sqlite3.Row
         db_cursor = conn.cursor()
 
-        # Write the SQL query to get the information you want
         db_cursor.execute("""
         SELECT
             e.id,
-            e.mood_id,
-            e.date,
             e.concept,
             e.entry,
-            m.label
-        FROM Entry e
-        JOIN Mood m 
-            ON e.mood_id = m.id
+            e.date,
+            e.mood_id,
+            m.id mood_id,
+            m.label mood_label
+        FROM Entries e
+        JOIN mood m 
+            ON m.id = e.mood_id
         """)
 
-        # Initialize an empty list to hold all entry representations
         entries = []
-
-        # Convert rows of data into a Python list
         dataset = db_cursor.fetchall()
 
-        # Iterate list of data returned from database
         for row in dataset:
+            entry = Entry(row['id'], row['concept'],
+                          row['entry'], row['date'], row['mood_id'])
 
-            # Create an entry instance from the current row.
-            # Note that the database fields are specified in
-            # exact order of the parameters defined in the
-            # Entry class above.
-            entry = Entry(row['id'], row['mood_id'],
-                          row['date'], row['concept'], row['entry'])
+            mood = Mood(row['id'], row['mood_label'])
 
-            mood = Mood(row['mood_id'], row['label'])
-
-            db_cursor.execute("""
-                SELECT
-                    et.tag_id
-                FROM EntryTag et
-                JOIN Entry e
-                    ON et.entry_id = e.id
-                WHERE et.entry_id = ?
-                """, (row['id'], ))
-
-            # Convert rows of data into a Python list
-            tag_data = db_cursor.fetchall()
-
-            tag_list = []
-
-            for new_row in tag_data:
-                tag_list.append(new_row['tag_id'])
-
-            entry.tags = tag_list
             entry.mood = mood.__dict__
+
+        # before we get all entries we want too check for tags,
+        # and add them too the entries OR add an empty array to the entry
+            db_cursor.execute("""
+            SELECT
+                t.id,
+                t.name
+            FROM entries e
+            JOIN entrytag et
+                ON e.id = et.entry_id
+            JOIN tag t
+                ON t.id = et.tag_id
+            WHERE e.id = ?          
+            """, (entry.id, ))
+            # tuple has entry id...
+
+            # fetch all tags
+            tagList = db_cursor.fetchall()
+
+            for row in tagList:
+                tag = Tag(row['id'], row['name'])
+                entry.tags.append(tag.__dict__)
+
+             # add tags to the entries
             entries.append(entry.__dict__)
 
-    # Use `json` package to properly serialize list as JSON
     return json.dumps(entries)
 
 
 def get_single_entry(id):
     with sqlite3.connect("./dailyjournal.sqlite3") as conn:
+
+        # Just use these. It's a Black Box.
         conn.row_factory = sqlite3.Row
         db_cursor = conn.cursor()
 
-        # Use a ? parameter to inject a variable's value
-        # into the SQL statement.
         db_cursor.execute("""
         SELECT
             e.id,
-            e.mood_id,
-            e.date,
             e.concept,
             e.entry,
-            m.label
-        FROM Entry e
-        JOIN Mood m 
-            ON e.mood_id = m.id
+            e.date,
+            e.mood_id
+        FROM Entries e
         WHERE e.id = ?
         """, (id, ))
 
-        # Load the single result into memory
-        row = db_cursor.fetchone()
+        data = db_cursor.fetchone()
 
-        # Create an entry instance from the current row
-        entry = Entry(row['id'], row['mood_id'],
-                      row['date'], row['concept'], row['entry'])
+        entry = Entry(data['id'], data['concept'],
+                      data['entry'], data['date'], data['mood_id'])
 
-        mood = Mood(row['mood_id'], row['label'])
-
-        db_cursor.execute("""
-            SELECT
-                et.tag_id
-            FROM EntryTag et
-            JOIN Entry e
-                ON et.entry_id = e.id
-            WHERE et.entry_id = ?
-            """, (row['id'], ))
-
-        # Convert rows of data into a Python list
-        tag_data = db_cursor.fetchall()
-
-        tag_list = []
-
-        for new_row in tag_data:
-            tag_list.append(new_row['tag_id'])
-
-        entry.tags = tag_list
-        entry.mood = mood.__dict__
-
-        return json.dumps(entry.__dict__)
+    return json.dumps(entry.__dict__)
 
 
 def delete_entry(id):
@@ -126,35 +94,34 @@ def delete_entry(id):
         db_cursor = conn.cursor()
 
         db_cursor.execute("""
-        DELETE FROM entry
+        DELETE FROM entries
         WHERE id = ?
         """, (id, ))
 
 
-def get_entries_by_search(search_term):
-
+def get_entry_by_search(entry):
     with sqlite3.connect("./dailyjournal.sqlite3") as conn:
         conn.row_factory = sqlite3.Row
         db_cursor = conn.cursor()
 
-        # Write the SQL query to get the information you want
         db_cursor.execute("""
-        select
-            a.id,
-            a.mood_id,
-            a.date,
-            a.concept,
-            a.entry
-        FROM Entry a
-        WHERE a.entry LIKE ? OR a.concept LIKE ?
-        """, (f'%{search_term}%', f'%{search_term}%'))
+        SELECT
+            e.id,
+            e.concept,
+            e.entry,
+            e.date,
+            e.mood_id
+        FROM entries e
+        WHERE e.entry LIKE ?
+        """, (f"%{entry}%", ))
+        # have to use question marks in query, in the tuple part input the thing you want
 
         entries = []
         dataset = db_cursor.fetchall()
 
         for row in dataset:
-            entry = Entry(row['id'], row['mood_id'], row['date'],
-                          row['concept'], row['entry'])
+            entry = Entry(row['id'], row['concept'],
+                          row['entry'], row['date'], row['mood_id'])
             entries.append(entry.__dict__)
 
     return json.dumps(entries)
@@ -165,53 +132,44 @@ def create_entry(new_entry):
         db_cursor = conn.cursor()
 
         db_cursor.execute("""
-        INSERT INTO Entry
-            ( mood_id, date, concept, entry)
+        INSERT INTO Entries
+            (concept, entry, date, mood_id)
         VALUES
             ( ?, ?, ?, ?);
-        """, (new_entry['mood_id'], new_entry['date'],
-              new_entry['concept'], new_entry['entry']
-              ))
+        """, (new_entry['concept'], new_entry['entry'], new_entry['date'], new_entry['moodId']))
 
-        # The `lastrowid` property on the cursor will return
-        # the primary key of the last thing that got added to
-        # the database.
-        entry_id = db_cursor.lastrowid
+        id = db_cursor.lastrowid
+        new_entry['id'] = id
 
-        # Add the `id` property to the entry dictionary that
-        # was sent by the client so that the client sees the
-        # primary key in the response.
-        new_entry['id'] = entry_id
+        # loop through the tags after adding new entry
+        # w/n loop execute SQL command to INSERT a row to entrytag table
+        # for tag in new_entry['tags']:
 
-        for tag_id in new_entry['tags']:
+            # db_cursor.execute("""
+            # INSERT INTO EntryTag
+            #     (entry_id, tag_id)
+            # VALUES
+            #     (?,?);
+            # """, (id, tag))
 
-            db_cursor.execute("""
-                INSERT INTO EntryTag
-                    ( entry_id, tag_id)
-                VALUES
-                    ( ?, ?);
-                """, (entry_id, tag_id))
-
-    return json.dumps(new_entry)
+        return json.dumps(new_entry)
 
 
 def update_entry(id, new_entry):
     with sqlite3.connect("./dailyjournal.sqlite3") as conn:
+        conn.row_factory = sqlite3.Row
         db_cursor = conn.cursor()
 
         db_cursor.execute("""
-        UPDATE Entry
+        UPDATE Entries
             SET
-                mood_id = ?,
-                date = ?,
                 concept = ?,
-                entry = ?
+                entry = ?,
+                date = ?,
+                mood_id = ?
         WHERE id = ?
-        """, (new_entry['mood_id'], new_entry['date'], new_entry['concept'],
-              new_entry['entry'], id))
+        """, (new_entry['concept'], new_entry['entry'], new_entry['date'], new_entry['moodId'], id, ))
 
-        # Were any rows affected?
-        # Did the client send an `id` that exists?
         rows_affected = db_cursor.rowcount
 
     if rows_affected == 0:
